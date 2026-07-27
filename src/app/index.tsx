@@ -4,6 +4,7 @@ import { styles } from "@/styles/styles";
 import { cameraScanResult } from "@/types/types";
 import { CameraView } from "expo-camera";
 import { GS1Engine, ProcessBarcodeResult } from 'expo-gs1-syntax-engine';
+import { NavigationBar } from 'expo-navigation-bar';
 import { useIsFocused } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
@@ -156,6 +157,7 @@ export default function Index() {
           responsiveOrientationWhenOrientationLocked
         />}
       </View>
+      <NavigationBar style="dark" />
     </SafeAreaView>
   );
 }
