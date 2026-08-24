@@ -41,7 +41,9 @@
           "hidden": false,
           "style": "dark"
         }
-      ]
+      ],
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
