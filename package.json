@@ -40,9 +40,16 @@
     "typescript": "~6.0.3"
   },
   "overrides": {
+    "function-bind": "npm:@socketregistry/function-bind@^1",
+    "hasown": "npm:@socketregistry/hasown@^1",
+    "is-core-module": "npm:@socketregistry/is-core-module@^1",
+    "object-assign": "npm:@socketregistry/object-assign@^1",
+    "path-parse": "npm:@socketregistry/path-parse@^1",
     "postcss": {
       "nanoid": "^3.3.18"
-    }
+    },
+    "safe-buffer": "npm:@socketregistry/safe-buffer@^1",
+    "shell-quote": "npm:shell-quote@^1"
   },
   "scripts": {
     "start": "expo start",
