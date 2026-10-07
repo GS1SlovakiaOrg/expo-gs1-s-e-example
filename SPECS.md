@@ -1,6 +1,6 @@
 # SPECS – aktuálny kontext projektu
 
-> **Stav k:** 06.10.2026 (verzia aplikácie `1.0.0`)
+> **Stav k:** 07.10.2026 (verzia aplikácie `1.0.0`)
 > **Zdroj pravdy:** táto + dokumentácia v [`docs/`](docs/README.md)
 > **Účel súboru:** rýchly kontext pre vývojárov a AI agentov pred zásahom do kódu.
 
@@ -64,7 +64,7 @@
     ├── scripts/helpers.ts    # getDateTimeMilisecs(), calculateCheckDigit() (nevyužité)
     ├── styles/Colors.tsx     # GS1 paleta (modrá rgb(0,44,108), oranžová rgb(242,99,52))
     ├── styles/styles.tsx     # utility triedy (Bootstrap-like mierky 1–5 = 6/12/18/28/40 px)
-    └── types/types.tsx       # cameraScanResult, dateString
+    └── types/types.tsx       # cameraScanResult, barcodeScanResult, dateString
 ```
 
 ## 4. Ako to funguje (životný cyklus)
@@ -95,9 +95,11 @@ sequenceDiagram
 **Konfigurácia engine:** `permitUnknownAIs=true`, `setValidationEnabled(RequisiteAIs,true)`,
 `includeDataTitlesInHRI=true`, `permitZeroSuppressedGTINinDLuris=false`.
 
-**Stavy spodnej časti (`CameraScannerView`, prvé pravidlo vyhráva):**
+**Stavy spodnej časti (`CameraScannerView`, prvé pravidlo vyhráva); prop `isInitialized`
+prichádza ako `isInitialized && isEncoderInit`:**
 `!isInitialized` → loading · `isProcessingData` → "Processing scan data" ·
-`!isCameraSupported` → text · `!isCameraEnabled` → text · inak `CameraScanner`.
+`!isCameraSupported` → text · `!isCameraEnabled` → text · inak `CameraScanner`
+(v ňom: `hasCameraPerms ? CameraBtn : "Camera permissions not granted").
 
 **Mapa typov (AIM):** `1→]C0 Code 128`, `2→]A0 Code 39`, `8→]F0 Codabar`, `16→]d0/]d2 Data Matrix (est.)`,
 `32→]E0 EAN-13`, `64→]E4 EAN-8`, `128→]I0 ITF`, `256→]Q1/]Q3 QR (est.)`, `512/1024→]E0 UPC`,
@@ -108,8 +110,6 @@ sequenceDiagram
 ```ts
 // src/types/types.tsx
 type cameraScanResult = { data: string; decoder: string; timeAtDecode: string; timestamp: number };
-
-// src/app/index.tsx
 interface barcodeScanResult extends ProcessBarcodeResult {
   data: string; decoder: string; timeAtDecode: string; timestamp: number;
 }
@@ -147,18 +147,28 @@ Oprávnenia (Manifest): `CAMERA`, `INTERNET`, `RECORD_AUDIO`, `VIBRATE`, `SYSTEM
 
 ## 7. Aktuálny stav / známe problémy (detail: [`docs/08-…`](docs/08-obmedzenia-a-znama-problemy.md))
 
-- **P1** `requestPermission()` sa volá počas renderu → presunúť do `useEffect`.
+**Vyriešené commitom `a05b16f` (07.10.2026):**
+- ~~**P1** `requestPermission()` počas renderu~~ → je vo `useEffect` (`[permission, hasCameraPerms]`).
+- ~~**P5** vetva `if (!encoder) return` nevynuluje `isProcessingData`~~ → vynuluje; **stále chýba
+  `try/finally`** okolo `processBarcode()` (P5 = čiastočne).
+- ~~**P7** `barcodeScanResult` v `index.tsx` (kruh)~~ → presunuté do `src/types/types.tsx`.
+- ~~**P8** preklep `isloading`~~ → premenované na `isEncoderInit` (`true` = init skončený);
+  premenná `encoder` však stále drží dekódovací engine (P8 = čiastočne).
+- ~~**P9** `ViewFixedText()` ako funkcia~~ → komponent s props `{ viewText }`.
+
+**Otvorené:**
 - **P2** `CameraView.dismissScanner()` je iOS-only; na Android je nadbytočné + nie je ošetrené
   výnimky vnútri callbacku.
 - **P3** `event.raw` nie je dokumentované v type `ScanningResult` (SDK 57) – GS1 detekcia na ňom závisí.
 - **P4** chyba pri registrácii listenera nastaví `timestamp: 0` → sken sa ticho nespracuje.
-- **P5** `if (!encoder) return;` v `processScannedData()` nevynuluje `isProcessingData` → UI sa môže
-  zaseknúť na „Processing scan data“ (chýba `try/finally`).
-- **P7** typ `barcodeScanResult` je v `index.tsx` a importuje sa späť zo `scanResultView.tsx` (kruh).
-- **P8** preklep `isloading`, premenná `encoder` drží dekódovací engine.
+- **P5** (zvyšok) chýba `try/finally` okolo `processBarcode()`.
+- **P8** (zvyšok) premenná `encoder` drží dekódovací engine.
 - **P10** `helpers.calculateCheckDigit()` = nevyužitý duplikát metódy knižnice.
 - **P11** `getDateTimeMilisecs()` nepoužíva padding (nejednotný formát času).
 - **P15** README nezmieňuje oprávnenia ani požiadavku GMS (Google Code Scanner).
+- **P16** `Text` sa importuje z interného `expo-router/build/react-navigation` namiesto `react-native`.
+- **P17** permission `useEffect` číta starú hodnotu `hasCameraPerms` → hrozí opakované volanie
+  `requestPermission()`.
 - Bez testov, bez CI, bez i18n, bez dark mode (štýly fixné), posledný výsledok sa nikde nemaže.
 
 **Nevyužitý potenciál engine (už dostupné):** `hri`, `dlUri`, `dataStr`/`aiDataStr`, `symbologyName`,
@@ -170,7 +180,7 @@ Oprávnenia (Manifest): `CAMERA`, `INTERNET`, `RECORD_AUDIO`, `VIBRATE`, `SYSTEM
 2. Neručne upravovať `android/` → iba `app.json` + `npx expo prebuild --clean`.
 3. Farby cez `src/styles/Colors.tsx` (žiadne hex literály v komponentoch), štýly cez `styles.tsx`.
 4. Pri `GS1Engine` **vždy** mať v `useEffect` cleanup `close()` (únik C pamäte).
-5. Nové typy pridávať do `src/types/types.tsx` (rieši P7).
+5. Nové typy pridávať do `src/types/types.tsx` (drží typy spolu – kruhový import P7 je tým vyriešený).
 6. Texty UI sú pevné anglické (žiadny i18n framework).
 7. Kód v `strict` TypeScripte, importy cez alias `@/…`.
 

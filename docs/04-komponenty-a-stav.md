@@ -5,7 +5,7 @@
 | Súbor | Export | Úloha |
 |---|---|---|
 | `src/app/_layout.tsx` | `RootLayout` (default) | Koreňový `Stack` navigator + štýl hlavičky |
-| `src/app/index.tsx` | `Index` (default), `interface barcodeScanResult` | Hlavná (a jediná) obrazovka: stav, init engine, tok skenu |
+| `src/app/index.tsx` | `Index` (default) | Hlavná (a jediná) obrazovka: stav, init engine, tok skenu |
 | `src/components/views/cameraScannerView.tsx` | `CameraScannerView` (default) | Podmienené zobrazenie spodnej časti (loading / chyba / skener) |
 | `src/components/views/scanResultView.tsx` | `ScanResultView` (+ interné `GS1AiDataView`, `BlueText`, `TwoColorText`) | Zobrazenie výsledku dekódovania alebo chyby |
 | `src/components/cameraScanner/cameraScanner.tsx` | `CameraScanner` (+ interné `getBarcodeTypeData`) | Listener skenu, spustenie systémového skenera, mapovanie typov |
@@ -14,7 +14,7 @@
 | `src/scripts/helpers.ts` | `getDateTimeMilisecs`, `calculateCheckDigit` | Pomocné funkcie |
 | `src/styles/Colors.tsx` | `Colors` (default) | Farebná paleta |
 | `src/styles/styles.tsx` | `styles` | `StyleSheet` s utility triedami |
-| `src/types/types.tsx` | `cameraScanResult`, `dateString` | Zdieľané typy |
+| `src/types/types.tsx` | `cameraScanResult`, `barcodeScanResult`, `dateString` | Zdieľané typy |
 
 ---
 
@@ -42,6 +42,10 @@ Koreňová obrazovka. Vlastní celý stav a životný cyklus (podrobnosti v
 [03-datovy-tok-a-zivotny-cyklus.md](03-datovy-tok-a-zivotny-cyklus.md)).
 
 ### Verejné rozhrania
+
+`index.tsx` už typ `barcodeScanResult` **neexportuje** – definícia presunutá do
+`src/types/types.tsx` (pozri sekciu [4.10 Zdieľané typy](#410-zdieľané-typy--srctypstypesx),
+nižšie); importuje sa odtiaľ cez `@/types/types`:
 
 ```ts
 export interface barcodeScanResult extends ProcessBarcodeResult {
@@ -96,7 +100,7 @@ SafeAreaView (edges: bottom, left, right) – styles.containerBase
 
 | Prop | Typ | Smer | Popis |
 |---|---|---|---|
-| `isInitialized` | `boolean` | vstup | či bol vykonaný test kamery a engine nie je v loading |
+| `isInitialized` | `boolean` | vstup | `isInitialized && isEncoderInit` – test kamery hotový **a** init engine skončený |
 | `isProcessingData` | `boolean` | vstup | prebieha dekódovanie |
 | `isCameraSupported` | `boolean` | vstup | zariadenie má kameru |
 | `isCameraEnabled` | `boolean` | vstup | dostupný moderný barcode skener |
@@ -106,7 +110,8 @@ SafeAreaView (edges: bottom, left, right) – styles.containerBase
 
 Vykonať kontrolu v tomto poradí (podmienka → zobrazenie); pozri stavový automat v
 [03.3](03-datovy-tok-a-zivotny-cyklus.md#33-stavový-automat-spodnej-časti-obrazovky-camerascannerview).
-Funkcia `ViewFixedText(viewText)` je pomocná funkcia (nie komponent), vracia `View` s textom.
+`ViewFixedText` je interný **komponent** s props `{ viewText: string }` (volá sa ako
+`<ViewFixedText viewText="…" />`) a vracia `View` s textom; nie je exportovaný.
 
 ---
 
@@ -162,7 +167,8 @@ type AIDataPairs = Record<string, AIDataItem>;   // { "10": { name: "Lot / Batch
 | zrušenie skenera | chyba obsahujúca `cancelled` sa **ignoruje** |
 | iná chyba spustenia | `Alert.alert('Error', 'Camera Scanner error. …')` |
 | ukončenie skenera (iOS) | `CameraView.dismissScanner()` |
-| oprávnenie | `useCameraPermissions()`; ak nie je udelené, volá sa `requestPermission()` |
+| oprávnenie | `useCameraPermissions()`; stav sa zrkadlí do `hasCameraPerms` vo `useEffect` – ak je `false`, volá sa `requestPermission()` |
+| render spodnej časti | `hasCameraPerms` → `<CameraBtn/>`; inak text *Camera permissions not granted* (z `expo-router` `Text`, pozri P16) |
 
 ### `getBarcodeTypeData(barcodeType, isEstimatedGS1Barcode)`
 
@@ -204,6 +210,8 @@ Zobrazuje `ActivityIndicator size="large"` v GS1 modrej, centrované na celom pr
 ## 4.10 Zdieľané typy – `src/types/types.tsx`
 
 ```ts
+import { ProcessBarcodeResult } from "expo-gs1-syntax-engine";
+
 export type dateString = string | number;
 
 export type cameraScanResult = {
@@ -212,7 +220,18 @@ export type cameraScanResult = {
   timeAtDecode: string;
   timestamp: number;
 };
+
+export interface barcodeScanResult extends ProcessBarcodeResult {
+  data: string;
+  decoder: string;
+  timeAtDecode: string;
+  timestamp: number;
+}
 ```
+
+> `barcodeScanResult` bol presunutý z `src/app/index.tsx` – tým sa odstránil kruhový import
+> `index.tsx ↔ scanResultView.tsx` (pozri P7 v
+> [08-obmedzenia-a-znama-problemy.md](08-obmedzenia-a-znama-problemy.md)).
 
 ## 4.11 Zhrnutie toku dát cez props
 

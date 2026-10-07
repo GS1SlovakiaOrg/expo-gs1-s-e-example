@@ -55,7 +55,7 @@ expo-gs1-s-e-example/
 ├── CLAUDE.md                  # len odkaz "@AGENTS.md"
 ├── README.md                  # oficiálny readme projektu
 ├── ToDo.md                    # zoznam úloh (zatiaľ len nadpis "# ToDo")
-├── changelog.md               # zmeny (v1.0.0 initial commit; vxxx – NavigationBar)
+├── changelog.md               # zmeny (v1.0.0 initial commit; vxxx – pracovná sekcia)
 ├── LICENSE                    # MIT
 ├── app.json                   # konfigurácia Expo aplikácie
 ├── eas.json                   # konfigurácia EAS Build / Submit
@@ -92,7 +92,7 @@ expo-gs1-s-e-example/
     │   ├── Colors.tsx                 # farebná paleta (GS1 brand)
     │   └── styles.tsx                 # StyleSheet s utility triedami
     └── types/
-        └── types.tsx                  # cameraScanResult, dateString
+        └── types.tsx                  # cameraScanResult, barcodeScanResult, dateString
 ```
 
 ### Poznámky k štruktúre
@@ -155,7 +155,7 @@ flowchart TD
     csv --> aic
     csv --> cs
 
-    srv -->|import type barcodeScanResult| index
+    srv -->|import type barcodeScanResult| typ
     srv --> sty
 
     cs --> hlp
@@ -175,10 +175,9 @@ flowchart TD
     sty --> col
 ```
 
-> `scanResultView.tsx` importuje typ `barcodeScanResult` priamo z `@/app/index` – vzniká tak
-> mierne kruhová závislosť (index → cameraScannerView → … a index → scanResultView → index).
-> Je to závislosť len na type (TypeScript `interface`), v behu k ničomu nedochádza; v rámci
-> technického dlhu sa odporúča presunúť tento typ do `src/types/types.tsx` (pozri
+> `scanResultView.tsx` aj `index.tsx` importujú typ `barcodeScanResult` zo `src/types/types.tsx`
+> – kruhová závislosť, ktorá tu pôvodne bola (index → scanResultView → index), bola odstránená
+> presunutím typu do spoločného modulu (pozri
 > [08-obmedzenia-a-znama-problemy.md](08-obmedzenia-a-znama-problemy.md)).
 
 ## 2.5 Kontrakt medzi vrstvami (typy)
@@ -226,7 +225,7 @@ Zdroje typov:
 |---|---|---|
 | `cameraScanResult` | `src/types/types.tsx` | projekt |
 | `dateString` | `src/types/types.tsx` | projekt |
-| `barcodeScanResult` | `src/app/index.tsx` | projekt (extends `ProcessBarcodeResult`) |
+| `barcodeScanResult` | `src/types/types.tsx` | projekt (extends `ProcessBarcodeResult`) |
 | `ProcessBarcodeResult`, `AIDataPairs`, `Symbology`, `Validation`, `InitOptions` | `expo-gs1-syntax-engine` | knižnica |
 | `ScanningResult` (`data`, `type`, príp. `raw`) | `expo-camera` | knižnica |
 
@@ -245,7 +244,7 @@ sequenceDiagram
 
     U->>I: spustenie aplikácie
     I->>EN: new GS1Engine() + init() + konfigurácia
-    EN-->>I: encoder pripravený (isloading=false)
+    EN-->>I: encoder pripravený (isEncoderInit=true)
     I->>CSV: isInitialized=true, isCameraSupported, isCameraEnabled
     U->>CS: ťuk na guľaté tlačidlo (CameraBtn)
     CS->>GC: CameraView.launchScanner()

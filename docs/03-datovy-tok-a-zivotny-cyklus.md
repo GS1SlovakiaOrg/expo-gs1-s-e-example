@@ -14,7 +14,7 @@
 | `lastCameraScan` | `cameraScanResult` | surový výstup zo skenera | `setLastCameraScan` z `CameraScanner` |
 | `scanResult` | `barcodeScanResult \| null` | výsledok `processBarcode` + metadeta skenu (to, čo sa renderuje) | `processScannedData()` |
 | `encoder` | `GS1Engine \| null` | inicializovaná inštancia engine | effect init |
-| `isloading` | `boolean` | prebieha init engine (v kóde zámerne/preklepo `isloading`) | effect init |
+| `isEncoderInit` | `boolean` | či skončil init engine (`true` = hotovo, aj keď zlyhal) | effect init |
 | `errorText` | `string` | chybová hláška zobrazená pod nadpisom | effect init / `processScannedData()` |
 
 Lokálne stavy v podkomponentoch:
@@ -22,6 +22,7 @@ Lokálne stavy v podkomponentoch:
 | Komponent | Stav | Význam |
 |---|---|---|
 | `CameraScanner` | `permission`, `requestPermission` (`useCameraPermissions`) | oprávnenie kamery |
+| `CameraScanner` | `hasCameraPerms` | zrkadlo `permission.granted` (aktuálna hodnota pre render + podmienka v effecte) |
 
 ## 3.2 Životný cyklus – `useEffect` hooky v `index.tsx`
 
@@ -47,14 +48,14 @@ useEffect(() => {
   let activeEncoder: GS1Engine | null = null;
   async function setup() {
     try {
-      setIsLoading(true);
+      setIsEncoderInit(false);
       activeEncoder = await initGS1Encoder();   // new GS1Engine() + init() + nastavenia
       setEncoder(activeEncoder);
       setErrorText('');
     } catch (err: any) {
       setErrorText(`Error initializing the C engine: ${err.message}`);
     } finally {
-      setIsLoading(false);
+      setIsEncoderInit(true);
     }
   }
   setup();
@@ -64,9 +65,12 @@ useEffect(() => {
 
 - Spustí sa raz pri mounte.
 - **Cleanup je povinný** – `close()` uvoľní natívny kontext; bez neho uniká C pamäť.
-- Pri chybe sa `errorText` zobrazí na obrazovke a `isloading` končí v `false`
-  (aj keď engine nie je pripravený → pri ďalšom skene sa zobrazí
+- `isEncoderInit` je `false` len počas init; vo `finally` sa nastaví na `true` **vždy** – aj pri
+  chybe. Preto sa pri chybnej init zobrazí `errorText` a `isEncoderInit` končí v `true`
+  (engine ale nie je pripravený → pri ďalšom skene sa zobrazí
   „GS1 Syntax Engine is not ready.“).
+- `isEncoderInit` sa do spodnej časti prenáša spolu s `isInitialized`
+  (`isInitialized={isInitialized && isEncoderInit}`) – dovtedy sa zobrazuje loading.
 
 ### Hook #2 – test kamery (`[isFocused, isInitialized]`)
 
@@ -109,11 +113,11 @@ useEffect(() => {
 ```mermaid
 flowchart TD
     A["processScannedData(scan)"] --> B{encoder pripravený?}
-    B -- nie --> C["setErrorText('GS1 Syntax Engine is not ready.')<br/>return"]
+    B -- nie --> C["setErrorText('GS1 Syntax Engine is not ready.')<br/>setIsProcessingData(false)<br/>return"]
     B -- ano --> D["encoder.processBarcode(scan.data)"]
     D --> E["setScanResult({...decodingResult, ...scan})<br/>setErrorText('')"]
     E --> F["setIsProcessingData(false)"]
-    D --> F
+    C --> F
 ```
 
 Výsledok je **spojenie** výsledku engine a metadát skenu:
@@ -124,6 +128,10 @@ scanResult = {
   ...scannData         // data, decoder, timeAtDecode, timestamp
 }
 ```
+
+> Obe vetvy (`!encoder` aj úspešná) nastavia `setIsProcessingData(false)`. Stále však chýba
+> `try/finally` okolo `encoder.processBarcode()` – ak by engine hodilo výnimku, `isProcessingData`
+> by zostalo `true` (pozri P5 v [08-obmedzenia-a-znama-problemy.md](08-obmedzenia-a-znama-problemy.md)).
 
 ## 3.3 Stavový automat spodnej časti obrazovky (`CameraScannerView`)
 
@@ -304,12 +312,21 @@ flowchart TD
 flowchart TD
     M["mount CameraScanner"] --> P{permission === null?}
     P -- ano --> N["return null<br/>(ešte sa načítava)"]
-    P -- nie --> G{permission.granted?}
-    G -- nie --> R["requestPermission() počas renderu ⚠"]
-    R --> G
-    G -- ano --> B["vykreslenie CameraBtn"]
+    P -- nie --> E["useEffect [permission, hasCameraPerms]"]
+    E --> S["setHasCameraPerms(permission.granted)"]
+    S --> Q{hasCameraPerms === false?}
+    Q -- ano --> R["requestPermission() (v useEffect)"]
+    R --> E
+    Q -- nie --> B["render: hasCameraPerms ?<br/>CameraBtn : text 'Camera permissions not granted'"]
 ```
 
-Poznámka: `requestPermission()` sa volá **priamo počas renderu** (nie v `useEffect`), čo môže
-spôsobiť opakované re-render volania – pozri
-[08-obmedzenia-a-znama-problemy.md](08-obmedzenia-a-znama-problemy.md).
+Poznámky k aktuálnej implementácii:
+
+- `requestPermission()` sa volá vo **`useEffect`**, nie počas renderu (pôvodný problém P1 je
+  opravený); starý kód je v súbore ponechaný ako komentár.
+- `hasCameraPerms` je lokálny stav zrkadliaci `permission.granted` – rozhoduje o tom, či sa
+  vykreslí `CameraBtn` alebo text *Camera permissions not granted*.
+- Podmienka v effecte používa **predchádzajúcu** hodnotu `hasCameraPerms` (nie čerstvé
+  `permsVal`), takže `requestPermission()` sa spúšťa až v ďalšom behu effectu – a pri
+  zamietnutom oprávnení sa môže opakovať (pozri P17 v
+  [08-obmedzenia-a-znama-problemy.md](08-obmedzenia-a-znama-problemy.md)).
