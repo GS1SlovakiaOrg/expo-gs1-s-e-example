@@ -10,17 +10,17 @@ import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-async function initGS1Encoder(): Promise<GS1Engine> {
-  const gs1encoder = new GS1Engine();
-  await gs1encoder.init();
+async function initGS1Engine(): Promise<GS1Engine> {
+  const gs1Engine = new GS1Engine();
+  await gs1Engine.init();
 
   // Configuring an instance using get/set properties
-  gs1encoder.permitUnknownAIs = true;
-  gs1encoder.setValidationEnabled(GS1Engine.validation.RequisiteAIs, true);
-  gs1encoder.includeDataTitlesInHRI = true;
-  gs1encoder.permitZeroSuppressedGTINinDLuris = false;
+  gs1Engine.permitUnknownAIs = true;
+  gs1Engine.setValidationEnabled(GS1Engine.validation.RequisiteAIs, true);
+  gs1Engine.includeDataTitlesInHRI = true;
+  gs1Engine.permitZeroSuppressedGTINinDLuris = false;
 
-  return gs1encoder;
+  return gs1Engine;
 }
 
 export default function Index() {
@@ -36,7 +36,7 @@ export default function Index() {
 
   const [scanResult, setScanResult] = useState<barcodeScanResult | null>(null);
 
-  const [encoder, setEncoder] = useState<GS1Engine | null>(null);
+  const [gs1Engine, setGs1Engine] = useState<GS1Engine | null>(null);
   const [isEncoderInit, setIsEncoderInit] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>('');
 
@@ -48,8 +48,8 @@ export default function Index() {
       try {
         setIsEncoderInit(false);
         // Calling init
-        activeEncoder = await initGS1Encoder();
-        setEncoder(activeEncoder);
+        activeEncoder = await initGS1Engine();
+        setGs1Engine(activeEncoder);
         setErrorText('');
       } catch (err: any) {
         setErrorText(`Error initializing the C engine: ${err.message}`);
@@ -87,15 +87,20 @@ export default function Index() {
   }, [lastCameraScan])
 
   const processScannedData = (scannData: cameraScanResult) => {
-    if (!encoder) {
+    if (!gs1Engine) {
       setErrorText('GS1 Syntax Engine is not ready.');
       setIsProcessingData(false);
       return;
     }
-    const decodingResult = encoder.processBarcode(scannData.data);
-    setScanResult({ ...decodingResult, ...scannData });
-    setErrorText('');
-    setIsProcessingData(false);
+    try {
+      const decodingResult = gs1Engine.processBarcode(scannData.data);
+      setScanResult({ ...decodingResult, ...scannData });
+      setErrorText('');
+    } catch (error) {
+      setErrorText('GS1 Syntax Engine error');
+    } finally {
+      setIsProcessingData(false);
+    }
   }
 
   // Test device camera availability and features
