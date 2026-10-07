@@ -18,9 +18,8 @@
 ## 8.2 Známe problémy / technický dlh
 
 > Kód nebol menený touto dokumentáciou; nasleduje analytický prehľad pozorovaní v zdrojovom kóde.
-> Stav **✅ opravené** / **⚠ čiastočne** označuje problémy vyriešené commitom
-> `a05b16f` „Update app by recommendation in docs“ (07.10.2026); pôvodný popis ostáva uvedený
-> pre kontext.
+> Stav **✅ opravené** / **⚠ čiastočne** označuje problémy vyriešené commitmi
+> `a05b16f` a `2ef58f6` (07.10.2026); pôvodný popis ostáva uvedený pre kontext.
 
 | # | Stav | Lokalita | Problém | Dopad | Odporúčanie |
 |---|---|---|---|---|---|
@@ -28,10 +27,10 @@
 | P2 | otvorený | `cameraScanner.tsx` (listener) | `CameraView.dismissScanner()` je podľa dokumentácie Expo SDK 57 **iOS-only**; na Androide sa skener zatvorí automaticky | volanie na Androide je nadbytočné; ak by hodilo výnimku, *vnútri callbacku* ju nič nezachytí (try/after-the-fact blok obalí len registráciu listenera) | podmieniť platformou (`Platform.OS === 'ios'`) a pridať vlastný try/catch v callbacku |
 | P3 | otvorený | `cameraScanner.tsx` | `event.raw` **nie je dokumentované** v type `ScanningResult` (docs SDK 57 uvádzajú len `data` a `type`); kód používa `event.raw?.…` | ak `raw` chýba, GS1 detekcia (`startsWithFnc1`) je `undefined`/false → kód nebude označený ako GS1 | overiť dostupnosť `raw` v použitej verzii `expo-camera`; mať fallback na `data.charCodeAt(0) === 29` |
 | P4 | otvorený | `cameraScanner.tsx` (`catch`) | pri chybe registrácie listenera sa nastaví `timestamp: 0` | efekt v `index.tsx` podmieňuje `lastCameraScan.timestamp` truthiness → sken sa **nespracuje**, chyba sa nikde nezobrazí | nastaviť reálny timestamp a zobraziť `errorText` |
-| P5 | ⚠ čiastočne | `index.tsx` (`processScannedData`) | vetva `if (!encoder)` už nastavuje `setIsProcessingData(false)` (opravené); stále však **chýba `try/finally`** okolo `processBarcode()` | ak by engine pri dekódovaní hodil výnimku, `isProcessingData` by zostalo `true` → UI by sa zaseklo na „Processing scan data“ | presunúť `setIsProcessingData(false)` do `finally` |
+| P5 | ✅ opravené | `index.tsx` (`processScannedData`) | vetva `if (!encoder)` vracala skôr, než sa stihol `setIsProcessingData(false)`, a chýbal `try/finally` okolo `processBarcode()`; teraz je `setIsProcessingData(false)` vo **`finally`** a `processBarcode()` je v `try/catch` (chyba → `errorText: 'GS1 Syntax Engine error'`) | – (UI sa nemôže zaseknúť na „Processing scan data“) | – |
 | P6 | otvorený | `index.tsx` | `doCameraTests()` sa viaže na `cameraRef` **skrytého** `CameraView`, ktorý sa odmontuje po `isInitialized=true` | ak by sa test mal opakovať (napr. po zmene oprávnení), ref už nie je dostupný | nechať ref počas života obrazovky alebo presunúť test inam |
 | P7 | ✅ opravené | `src/types/types.tsx` | `barcodeScanResult` bol definovaný v `index.tsx` a importovaný späť zo `scanResultView.tsx` → kruhová závislosť; typ je teraz presunutý do `src/types/types.tsx` | – (kruh `index.tsx ↔ scanResultView.tsx` zanikol) | – |
-| P8 | ⚠ čiastočne | `index.tsx` | `isloading` (preklep) premenované na **`isEncoderInit`** so zmenenou semantikou (`true` = init skončený); premenná `encoder` stále drží **dekódovací** engine | čitateľnosť | premenovať `encoder` → `decoder` (resp. `gs1Engine`) |
+| P8 | ✅ opravené | `index.tsx` | `isloading` (preklep) premenované na **`isEncoderInit`** so zmenenou semantikou (`true` = init skončený) a stav `encoder` → **`gs1Engine`** (`setGs1Engine`), funkcia `initGS1Encoder()` → `initGS1Engine()` | – | – |
 | P9 | ✅ opravené | `cameraScannerView.tsx` | `ViewFixedText()` bola funkcia volaná ako `ViewFixedText('text')`; teraz je komponent s props `{ viewText }` a volá sa `<ViewFixedText viewText="…" />` | – | – |
 | P10 | otvorený | `helpers.ts` | `calculateCheckDigit()` je **nevyužitý** duplikát metódy `GS1Engine.calculateCheckDigit()` | mŕtvy kód | odstrániť alebo delegovať na knižnicu |
 | P11 | otvorený | `helpers.ts` | `getDateTimeMilisecs()` nepoužíva `padStart`, sekundy/ms sa nezapisujú na 2/3 číslice | nejednotný formát času (`06.10.2026 9:5:3:7`) | použiť `padStart(2,'0')` / `padStart(3,'0')` alebo `Intl.DateTimeFormat` |
@@ -58,10 +57,13 @@
 
 - Aplikácia **neodosiela žiadne údaje** na server; dekódovanie prebieha lokálne v natívnom C engine.
 - Oprávnenia: `CAMERA` (nevyhnutné), plus štandardné Expo povolenia pridané do Manifestu
-  (`INTERNET`, `RECORD_AUDIO`, `VIBRATE`, `READ/WRITE_EXTERNAL_STORAGE` ≤ SDK 32,
-  `SYSTEM_ALERT_WINDOW`).
-- Odporúčanie: pre produkčnú aplikáciu prehodnotiť nutnosť `RECORD_AUDIO` a `SYSTEM_ALERT_WINDOW`
-  (minimalizácia oprávnení) – pridávajú sa konfiguráciou `expo-camera` resp. `app.json → android.permissions`.
+  (`INTERNET`, `VIBRATE`, `READ/WRITE_EXTERNAL_STORAGE` ≤ SDK 32, `SYSTEM_ALERT_WINDOW`).
+  `RECORD_AUDIO` sa už **nepridáva** – plugin `expo-camera` je v `app.json` nastavený na
+  `recordAudioAndroid: false` (prejaví sa po `npx expo prebuild --clean`; starší vygenerovaný
+  manifest ho ešte obsahuje).
+- Odporúčanie: pre produkčnú aplikáciu prehodnotiť nutnosť `SYSTEM_ALERT_WINDOW`
+  (minimalizácia oprávnení) – pridáva sa konfiguráciou `app.json → android.permissions`;
+  minimalizácia `RECORD_AUDIO` je už vyriešená cez plugin `expo-camera`.
 - Obsah kódu pochádza z dôveryhodného zdroja (používateľ), no `processBarcode` spracováva
   ľubovoľný reťazec – engine je na to navrhnutý (validácia vstupu na strane C knižnice).
 
@@ -73,6 +75,7 @@
 |---|---|
 | `vxxx` (pracovná) | Pridaná `NavigationBar`, predvolená téma „dark“ |
 | `vxxx` (pracovná) | Opravy podľa `docs/` (commit `a05b16f`): typ `barcodeScanResult` presunutý do `src/types/types.tsx`, `isloading` → `isEncoderInit`, `requestPermission()` presunuté do `useEffect` + fallback text *Camera permissions not granted*, `ViewFixedText` ako komponent, `setIsProcessingData(false)` aj vo vetve chyby |
+| `vxxx` (pracovná) | Pridaný plugin `expo-camera` do `app.json` (`cameraPermission`, `recordAudioAndroid: false`, `barcodeScannerEnabled: true`); premenovanie `initGS1Encoder` → `initGS1Engine` a stavu `encoder` → `gs1Engine`; `processScannedData()` zabalené do `try/catch/finally` |
 | `v1.0.0` | initial commit |
 
 `ToDo.md` – obsahuje len nadpis `# ToDo` (zoznam úloh je zatiaľ prázdny).
@@ -81,8 +84,8 @@
 
 ```mermaid
 flowchart TD
-    B[Backlog] --> T1["Refactor: premenovať encoder → decoder,<br/>odstrániť zakomentovaný kód v cameraScanner"]
-    B --> T2["Robustnosť: try/finally pri processScannedData,<br/>zobrazenie chýb listenera"]
+    B[Backlog] --> T1["Refactor: odstrániť zakomentovaný kód v cameraScanner<br/>(premenovanie encoder → gs1Engine je hotové)"]
+    B --> T2["Robustnosť: zobrazenie chýb listenera (P4)<br/>(try/finally pri processScannedData je hotové)"]
     B --> T3["Permissions: opraviť podmienku v useEffect (P17)<br/>– čerstvá hodnota + ochrana proti opakovaniu"]
     B --> T4["Platform: dismissScanner len na iOS,<br/>overiť event.raw"]
     B --> T5["UX: tlačidlo Clear, počet AI, zobrazenie HRI<br/>a DL URI (už ich engine vracia)"]

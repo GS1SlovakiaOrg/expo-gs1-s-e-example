@@ -244,7 +244,7 @@ sequenceDiagram
 
     U->>I: spustenie aplikácie
     I->>EN: new GS1Engine() + init() + konfigurácia
-    EN-->>I: encoder pripravený (isEncoderInit=true)
+    EN-->>I: gs1Engine pripravený (isEncoderInit=true)
     I->>CSV: isInitialized=true, isCameraSupported, isCameraEnabled
     U->>CS: ťuk na guľaté tlačidlo (CameraBtn)
     CS->>GC: CameraView.launchScanner()

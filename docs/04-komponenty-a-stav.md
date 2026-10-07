@@ -56,15 +56,15 @@ export interface barcodeScanResult extends ProcessBarcodeResult {
 }
 ```
 
-### `initGS1Encoder(): Promise<GS1Engine>`
+### `initGS1Engine(): Promise<GS1Engine>`
 
 ```ts
-const gs1encoder = new GS1Engine();
-await gs1encoder.init();
-gs1encoder.permitUnknownAIs = true;
-gs1encoder.setValidationEnabled(GS1Engine.validation.RequisiteAIs, true);
-gs1encoder.includeDataTitlesInHRI = true;
-gs1encoder.permitZeroSuppressedGTINinDLuris = false;
+const gs1Engine = new GS1Engine();
+await gs1Engine.init();
+gs1Engine.permitUnknownAIs = true;
+gs1Engine.setValidationEnabled(GS1Engine.validation.RequisiteAIs, true);
+gs1Engine.includeDataTitlesInHRI = true;
+gs1Engine.permitZeroSuppressedGTINinDLuris = false;
 ```
 
 | Nastavenie | Hodnota | Význam |

@@ -52,12 +52,12 @@ classDiagram
 
 | Použité API | Kde v aplikácii |
 |---|---|
-| `new GS1Engine()` | `initGS1Encoder()` |
-| `await init()` | `initGS1Encoder()` |
-| `permitUnknownAIs = true` | `initGS1Encoder()` |
-| `setValidationEnabled(Validation.RequisiteAIs, true)` | `initGS1Encoder()` |
-| `includeDataTitlesInHRI = true` | `initGS1Encoder()` |
-| `permitZeroSuppressedGTINinDLuris = false` | `initGS1Encoder()` |
+| `new GS1Engine()` | `initGS1Engine()` |
+| `await init()` | `initGS1Engine()` |
+| `permitUnknownAIs = true` | `initGS1Engine()` |
+| `setValidationEnabled(Validation.RequisiteAIs, true)` | `initGS1Engine()` |
+| `includeDataTitlesInHRI = true` | `initGS1Engine()` |
+| `permitZeroSuppressedGTINinDLuris = false` | `initGS1Engine()` |
 | `processBarcode(data)` | `processScannedData()` |
 | `close()` | cleanup `useEffect` |
 
@@ -163,9 +163,9 @@ sequenceDiagram
 Knižnica podporuje aj „pôvodný“ viackrokový prístup:
 
 ```ts
-encoder.setScanData(']d201085800000000091126071610Lot858\u001D21Serial01');
-const hri  = encoder.getHRI();               // string[]
-const data = encoder.getEngineResultData();  // ProcessBarcodeResult
+engine.setScanData(']d201085800000000091126071610Lot858\u001D21Serial01');
+const hri  = engine.getHRI();               // string[]
+const data = engine.getEngineResultData();  // ProcessBarcodeResult
 ```
 
 Táto aplikácia používa výhradne **`processBarcode()`**, ktorý tieto kroky obalí do jedného volania

@@ -13,7 +13,7 @@
 | `lastCameraScanTime` | `number` | timestamp posledne spracovaného skenu (**deduplikácia**) | effect na `lastCameraScan` |
 | `lastCameraScan` | `cameraScanResult` | surový výstup zo skenera | `setLastCameraScan` z `CameraScanner` |
 | `scanResult` | `barcodeScanResult \| null` | výsledok `processBarcode` + metadeta skenu (to, čo sa renderuje) | `processScannedData()` |
-| `encoder` | `GS1Engine \| null` | inicializovaná inštancia engine | effect init |
+| `gs1Engine` | `GS1Engine \| null` | inicializovaná inštancia engine (predtým `encoder`) | effect init |
 | `isEncoderInit` | `boolean` | či skončil init engine (`true` = hotovo, aj keď zlyhal) | effect init |
 | `errorText` | `string` | chybová hláška zobrazená pod nadpisom | effect init / `processScannedData()` |
 
@@ -38,7 +38,7 @@ stateDiagram-v2
     AwaitingScan --> Processing: lastCameraScan sa zmení
     Processing --> Ready: processScannedData() → scanResult
     Processing --> Ready: chyba (errorText)
-    Ready --> [*]: unmount → encoder.close()
+    Ready --> [*]: unmount → activeEncoder.close()
 ```
 
 ### Hook #1 – inicializácia engine (`[]`)
@@ -49,8 +49,8 @@ useEffect(() => {
   async function setup() {
     try {
       setIsEncoderInit(false);
-      activeEncoder = await initGS1Encoder();   // new GS1Engine() + init() + nastavenia
-      setEncoder(activeEncoder);
+      activeEncoder = await initGS1Engine();   // new GS1Engine() + init() + nastavenia
+      setGs1Engine(activeEncoder);
       setErrorText('');
     } catch (err: any) {
       setErrorText(`Error initializing the C engine: ${err.message}`);
@@ -112,11 +112,14 @@ useEffect(() => {
 
 ```mermaid
 flowchart TD
-    A["processScannedData(scan)"] --> B{encoder pripravený?}
-    B -- nie --> C["setErrorText('GS1 Syntax Engine is not ready.')<br/>setIsProcessingData(false)<br/>return"]
-    B -- ano --> D["encoder.processBarcode(scan.data)"]
+    A["processScannedData(scan)"] --> B{gs1Engine pripravený?}
+    B -- nie --> C["setErrorText('GS1 Syntax Engine is not ready.')<br/>setIsProcessingData(false) + return"]
+    B -- ano --> T["try { … }"]
+    T --> D["gs1Engine.processBarcode(scan.data)"]
     D --> E["setScanResult({...decodingResult, ...scan})<br/>setErrorText('')"]
-    E --> F["setIsProcessingData(false)"]
+    T -.->|výnimka| X["catch (error)<br/>setErrorText('GS1 Syntax Engine error')"]
+    E --> F["finally: setIsProcessingData(false)"]
+    X --> F
     C --> F
 ```
 
@@ -129,9 +132,10 @@ scanResult = {
 }
 ```
 
-> Obe vetvy (`!encoder` aj úspešná) nastavia `setIsProcessingData(false)`. Stále však chýba
-> `try/finally` okolo `encoder.processBarcode()` – ak by engine hodilo výnimku, `isProcessingData`
-> by zostalo `true` (pozri P5 v [08-obmedzenia-a-znama-problemy.md](08-obmedzenia-a-znama-problemy.md)).
+> `setIsProcessingData(false)` je v **`finally`** – vykoná sa pri úspechu, chybe aj vo vetve
+> `!gs1Engine` (pred návratom), takže sa UI nemôže zaseknúť na „Processing scan data“
+> (P5 je opravené; detail pozri
+> [08-obmedzenia-a-znama-problemy.md](08-obmedzenia-a-znama-problemy.md)).
 
 ## 3.3 Stavový automat spodnej časti obrazovky (`CameraScannerView`)
 

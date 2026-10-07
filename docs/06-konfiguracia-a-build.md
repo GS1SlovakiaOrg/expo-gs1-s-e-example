@@ -44,7 +44,7 @@ Alternatívne cez npm skripty (`package.json`):
 flowchart TD
     A["app.json → expo"] --> B["identity: name, slug, version 1.0.0,<br/>scheme expogs1seexample, orientation portrait"]
     A --> C["platformy: ios (icon),<br/>android (adaptiveIcon, package),<br/>web (output static, favicon)"]
-    A --> D["plugins: expo-router, expo-splash-screen,<br/>expo-navigation-bar, expo-image, expo-web-browser"]
+    A --> D["plugins: expo-router, expo-splash-screen,<br/>expo-navigation-bar, expo-image, expo-web-browser,<br/>expo-camera (cameraPermission, recordAudioAndroid, barcodeScannerEnabled)"]
     A --> E["experiments: typedRoutes=true,<br/>reactCompiler=true"]
     A --> F["extra: router, eas.projectId"]
 ```
@@ -75,6 +75,13 @@ flowchart TD
 | `expo-navigation-bar` | `enforceContrast true`, `hidden false`, `style dark` | Android navigačná lišta (tmavý štýl, kontrast vynútený) |
 | `expo-image` | – | konfigurácia obrázkov |
 | `expo-web-browser` | – | `Linking`/webový prehliadač |
+| `expo-camera` | `cameraPermission "Allow $(PRODUCT_NAME) to access your camera"`, `recordAudioAndroid false`, `barcodeScannerEnabled true` | iOS `NSCameraUsageDescription` (text žiadosti o kameru); na Androide sa **nepridá** `RECORD_AUDIO`; barcode scanner ponechaný zapnutý (default `true`) |
+
+> `recordAudioAndroid: false` znamená, že `android.permission.RECORD_AUDIO` **nebude** v manifeste
+> po ďalšom `npx expo prebuild` – v použitej verzii `expo-camera` už toto povolenie nepridáva
+> modul sám, ale výhradne config plugin (CHANGELOG `expo-camera`: *„Remove `RECORD_AUDIO` from the
+> manifest so `recordAudioAndroid` depends on the plugin“*). `barcodeScannerEnabled` je defaultne
+> `true` → gradle property `expo.camera.barcode-scanner-enabled` sa nastavuje len pri hodnote `false`.
 
 `<NavigationBar style="dark" />` sa navyše volá priamo v `index.tsx` (runtime zmena štýlu).
 
@@ -144,12 +151,16 @@ eas submit --platform android --profile production
 |---|---|---|
 | `uses-permission CAMERA` | – | pridáva `expo-camera` (nutné pre skener) |
 | `uses-permission INTERNET` | – | Metro/dev a web |
-| `uses-permission RECORD_AUDIO` | – | pridávané `expo-camera` (nahrávanie videa; tu nevyužité) |
+| `uses-permission RECORD_AUDIO` | – | **už sa nepridáva** – plugin `expo-camera` má `recordAudioAndroid: false` (ešte pred zmenou `app.json` ho `expo-camera` pridával) |
 | `uses-permission VIBRATE`, `SYSTEM_ALERT_WINDOW`, `READ/WRITE_EXTERNAL_STORAGE` (maxSdk 32) | – | štandardné Expo povolenia |
 | `intent-filter` VIEW + schéma `expogs1seexample` | – | deep linking |
 | `screenOrientation` | `portrait` | zodpovedá `app.json` |
 | `expo.modules.updates.ENABLED` | `false` | Expo Updates vypnuté |
 | `enableOnBackInvokedCallback` | `false` | prediktívny back gesture vypnutý |
+
+> **Poznámka k aktuálnosti:** vygenerovaný `android/` v repozitári ešte pochádza z predošlého
+> prebuildu (obsahuje `RECORD_AUDIO`); po zmene `app.json` (plugin `expo-camera`) je potrebné
+> `npx expo prebuild --clean`, aby sa prejavilo `recordAudioAndroid: false`.
 
 ## 6.8 Postup zmeny natívnej konfigurácie
 

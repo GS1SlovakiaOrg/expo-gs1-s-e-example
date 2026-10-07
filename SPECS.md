@@ -84,7 +84,7 @@ sequenceDiagram
     I->>EN: processBarcode(data)
     EN-->>I: ProcessBarcodeResult (aiDataPairs, aiOrder, hri, dlUri, success, errorReason)
     I->>I: setScanResult → ScanResultView render
-    Note over I: unmount → encoder.close() (uvoľnenie C pamäte)
+    Note over I: unmount → activeEncoder.close() (uvoľnenie C pamäte)
 ```
 
 **3 hooky v `index.tsx`:**
@@ -141,19 +141,21 @@ eas build --platform android --profile preview|production
 | `production` | store | – | true |
 
 Pluginy v `app.json`: `expo-router`, `expo-splash-screen` (`#208AEF`, `splash-icon.png`, 76 px),
-`expo-navigation-bar` (`style: dark`, `enforceContrast`), `expo-image`, `expo-web-browser`.
-Oprávnenia (Manifest): `CAMERA`, `INTERNET`, `RECORD_AUDIO`, `VIBRATE`, `SYSTEM_ALERT_WINDOW`,
-`READ/WRITE_EXTERNAL_STORAGE` (≤32).
+`expo-navigation-bar` (`style: dark`, `enforceContrast`), `expo-image`, `expo-web-browser`,
+`expo-camera` (`cameraPermission`, `recordAudioAndroid: false`, `barcodeScannerEnabled: true`).
+Oprávnenia (Manifest): `CAMERA`, `INTERNET`, `VIBRATE`, `SYSTEM_ALERT_WINDOW`,
+`READ/WRITE_EXTERNAL_STORAGE` (≤32) – **`RECORD_AUDIO` sa už nepridáva** (`recordAudioAndroid:
+false`; prejaví sa po `npx expo prebuild --clean`).
 
 ## 7. Aktuálny stav / známe problémy (detail: [`docs/08-…`](docs/08-obmedzenia-a-znama-problemy.md))
 
-**Vyriešené commitom `a05b16f` (07.10.2026):**
+**Vyriešené commitmi `a05b16f` a `2ef58f6` (07.10.2026):**
 - ~~**P1** `requestPermission()` počas renderu~~ → je vo `useEffect` (`[permission, hasCameraPerms]`).
-- ~~**P5** vetva `if (!encoder) return` nevynuluje `isProcessingData`~~ → vynuluje; **stále chýba
-  `try/finally`** okolo `processBarcode()` (P5 = čiastočne).
+- ~~**P5** `processScannedData()` bez `try/finally`~~ → `processBarcode()` je v `try/catch` a
+  `setIsProcessingData(false)` je vo `finally`.
 - ~~**P7** `barcodeScanResult` v `index.tsx` (kruh)~~ → presunuté do `src/types/types.tsx`.
-- ~~**P8** preklep `isloading`~~ → premenované na `isEncoderInit` (`true` = init skončený);
-  premenná `encoder` však stále drží dekódovací engine (P8 = čiastočne).
+- ~~**P8** preklep `isloading` + premenná `encoder`~~ → `isEncoderInit` (`true` = init skončený)
+  a `encoder` → **`gs1Engine`** (`initGS1Encoder()` → `initGS1Engine()`).
 - ~~**P9** `ViewFixedText()` ako funkcia~~ → komponent s props `{ viewText }`.
 
 **Otvorené:**
@@ -161,8 +163,6 @@ Oprávnenia (Manifest): `CAMERA`, `INTERNET`, `RECORD_AUDIO`, `VIBRATE`, `SYSTEM
   výnimky vnútri callbacku.
 - **P3** `event.raw` nie je dokumentované v type `ScanningResult` (SDK 57) – GS1 detekcia na ňom závisí.
 - **P4** chyba pri registrácii listenera nastaví `timestamp: 0` → sken sa ticho nespracuje.
-- **P5** (zvyšok) chýba `try/finally` okolo `processBarcode()`.
-- **P8** (zvyšok) premenná `encoder` drží dekódovací engine.
 - **P10** `helpers.calculateCheckDigit()` = nevyužitý duplikát metódy knižnice.
 - **P11** `getDateTimeMilisecs()` nepoužíva padding (nejednotný formát času).
 - **P15** README nezmieňuje oprávnenia ani požiadavku GMS (Google Code Scanner).
