@@ -32,16 +32,23 @@ export default function CameraScannerView(props: CameraScannerViewProps) {
         );
     }
     if (props.isCameraSupported === false) {
-        return ViewFixedText('Camera is not supported.');
+        return (
+            <ViewFixedText viewText="Camera is not supported." />
+        )
     }
     if (props.isCameraEnabled === false) {
-        return ViewFixedText('Camera is not enabled. Enable camera and reopen app.');
+        return (
+            <ViewFixedText viewText="Camera is not enabled. Enable camera and reopen app." />
+        )
     }
 
     return <CameraScanner setLastCameraScan={props.setLastCameraScan} />
 }
 
-function ViewFixedText(viewText: string) {
+interface ViewFixedTextProps {
+    viewText: string
+}
+function ViewFixedText({ viewText }: ViewFixedTextProps) {
     return (
         <View style={styles.containerBase}>
             <Text>{viewText}</Text>

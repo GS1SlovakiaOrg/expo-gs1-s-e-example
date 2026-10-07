@@ -1,21 +1,14 @@
 import CameraScannerView from "@/components/views/cameraScannerView";
 import { ScanResultView } from "@/components/views/scanResultView";
 import { styles } from "@/styles/styles";
-import { cameraScanResult } from "@/types/types";
+import { barcodeScanResult, cameraScanResult } from "@/types/types";
 import { CameraView } from "expo-camera";
-import { GS1Engine, ProcessBarcodeResult } from 'expo-gs1-syntax-engine';
+import { GS1Engine } from 'expo-gs1-syntax-engine';
 import { NavigationBar } from 'expo-navigation-bar';
 import { useIsFocused } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-export interface barcodeScanResult extends ProcessBarcodeResult {
-  data: string,
-  decoder: string,
-  timeAtDecode: string,
-  timestamp: number
-}
 
 async function initGS1Encoder(): Promise<GS1Engine> {
   const gs1encoder = new GS1Engine();
@@ -44,7 +37,7 @@ export default function Index() {
   const [scanResult, setScanResult] = useState<barcodeScanResult | null>(null);
 
   const [encoder, setEncoder] = useState<GS1Engine | null>(null);
-  const [isloading, setIsLoading] = useState<boolean>(true);
+  const [isEncoderInit, setIsEncoderInit] = useState<boolean>(false);
   const [errorText, setErrorText] = useState<string>('');
 
   // init GS1 Syntax Engine
@@ -53,7 +46,7 @@ export default function Index() {
 
     async function setup() {
       try {
-        setIsLoading(true);
+        setIsEncoderInit(false);
         // Calling init
         activeEncoder = await initGS1Encoder();
         setEncoder(activeEncoder);
@@ -61,7 +54,7 @@ export default function Index() {
       } catch (err: any) {
         setErrorText(`Error initializing the C engine: ${err.message}`);
       } finally {
-        setIsLoading(false);
+        setIsEncoderInit(true);
       }
     }
 
@@ -96,6 +89,7 @@ export default function Index() {
   const processScannedData = (scannData: cameraScanResult) => {
     if (!encoder) {
       setErrorText('GS1 Syntax Engine is not ready.');
+      setIsProcessingData(false);
       return;
     }
     const decodingResult = encoder.processBarcode(scannData.data);
@@ -141,7 +135,7 @@ export default function Index() {
         </View>
 
         <CameraScannerView
-          isInitialized={isInitialized && !isloading}
+          isInitialized={isInitialized && isEncoderInit}
           isProcessingData={isProcessingData}
           isCameraSupported={isCameraSupported}
           isCameraEnabled={isCameraEnabled}

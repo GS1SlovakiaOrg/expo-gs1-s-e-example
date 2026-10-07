@@ -1,5 +1,5 @@
-import { barcodeScanResult } from "@/app/index";
 import { styles } from "@/styles/styles";
+import { barcodeScanResult } from "@/types/types";
 import { FlatList, Text, View } from "react-native";
 
 type ScanResultViewProps = {

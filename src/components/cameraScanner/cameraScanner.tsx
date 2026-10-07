@@ -2,7 +2,8 @@ import { getDateTimeMilisecs } from '@/scripts/helpers';
 import { styles } from '@/styles/styles';
 import { cameraScanResult } from '@/types/types';
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { Dispatch, SetStateAction, useEffect } from 'react';
+import { Text } from 'expo-router/build/react-navigation';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { CameraBtn } from '../buttons/buttons';
 
@@ -12,6 +13,15 @@ type CameraViewProps = {
 
 export function CameraScanner(props: CameraViewProps) {
   const [permission, requestPermission] = useCameraPermissions();
+  const [hasCameraPerms, setHasCameraPerms] = useState(permission?.granted);
+
+  useEffect(() => {
+    const permsVal = permission?.granted;
+    setHasCameraPerms(permsVal);
+    if (hasCameraPerms === false) {
+      requestPermission();
+    }
+  }, [permission, hasCameraPerms])
 
   useEffect(() => {
     let subscription = {} as any;
@@ -89,15 +99,20 @@ export function CameraScanner(props: CameraViewProps) {
     return null;
   }
 
-  if (!permission.granted) {
-    requestPermission();
-  }
+  // if (!permission.granted) {
+  //   requestPermission();
+  // }
 
   return (
     <View style={[styles.containerAbsoluteBR, styles.backgroundWhite, styles.containerRounded]}>
       <View style={[styles.px3, styles.py3]}>
-        <CameraBtn
-          doOnClick={handlePress} />
+
+        {
+          (hasCameraPerms) ?
+            <CameraBtn
+              doOnClick={handlePress} /> : <Text>Camera permissions not granted</Text>
+        }
+
       </View>
     </View>
   );
